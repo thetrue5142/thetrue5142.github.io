@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>DASHBOARD</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+            background: linear-gradient(to right, #022a51, #003854, #022a51);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        #header-bar {
+            display: flex;
+            align-items: center;
+            padding-top: 10px;
+            position: relative;
+        }
+
+        h1 {
+            color: #a6ddff;
+            font-size: 2em;
+            margin: 0;
+            width: 100%;
+            text-align: center;
+        }
+
+        #statusMessage {
+            position: absolute;
+            right: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+            margin: 0;
+            color: #fff700;
+            font-weight: bold;
+            font-size: 1.1em;
+            visibility: hidden;
+        }
+
+        #dashboard-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 20px;
+            padding-top: 10px;
+            gap: 20px;
+        }
+
+        .chart-panel {
+            flex: 1 1 calc(50% - 10px);
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            color: #e0e0e0;
+            border-radius: 10px;
+        }
+
+        .chart-panel h2 {
+            margin-top: 0;
+            color: #ffffff;
+        }
+
+        .chart-canvas-container {
+            height: 400px;
+            width: 90%;
+            margin: 15px auto 0 auto;
+            box-sizing: border-box;
+            background-color: #ffffff;
+            padding: 10px;
+        }
+
+        .q2-controls {
+            text-align: center;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 14px;
+            margin: 20px;
+            margin-bottom: 0px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background-color: #2c3e50;
+            padding: 30px 40px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            color: #ecf0f1;
+        }
+
+        .modal-content h2 {
+            color: #3498db;
+            margin-top: 0;
+        }
+
+        .modal-content label {
+            display: block;
+            text-align: left;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+
+        .modal-content input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #34495e;
+            background-color: #1a242f;
+            color: #ffffff;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+
+        .modal-content button {
+            background-color: #e74c3c;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1.1em;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+
+        .modal-content button:hover {
+            background-color: #c0392b;
+        }
+
+        @media (max-width: 992px) {
+
+            #header-bar {
+                padding: 20px 10px 10px 10px;
+            }
+
+            #statusMessage {
+                right: 10px;
+            }
+
+            #dashboard-container {
+                flex-direction: column;
+                padding: 10px 10px 20px 10px;
+                gap: 25px;
+            }
+
+            .chart-panel {
+                width: 100%;
+                flex: 1 1 auto;
+                max-width: none !important;
+                padding: 15px;
+            }
+
+            .chart-canvas-container {
+                height: 300px;
+                width: 100%;
+                margin-top: 15px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="auth-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h2>登入</h2>
+
+            <p id="authErrorMessage" style="color: #ff5050; margin-top: 15px; font-weight: bold;"></p>
+
+            <label for="inputToken">TokenKey:</label>
+            <input type="text" id="inputToken">
+
+            <label for="inputSid">SID:</label>
+            <input type="text" id="inputSid">
+
+            <button onclick="saveKeysAndLoadDashboard()">載入儀表板</button>
+        </div>
+    </div>
+
+    <div id="header-bar">
+        <h1>DASHBOARD</h1>
+        <p id="statusMessage"></p>
+    </div>
+
+    <div id="dashboard-container">
+
+        <div id="q1-panel" class="chart-panel">
+            <h2>產品每日不良率監控</h2>
+            <div class="chart-canvas-container">
+                <canvas id="qualityChart"></canvas>
+            </div>
+            <button id="updateChartBtn">切換資料 (目前：資料 1)</button>
+        </div>
+
+        <div id="q2-panel" class="chart-panel">
+            <h2>生產輸出趨勢</h2>
+
+            <div class="chart-canvas-container">
+                <canvas id="myChart"></canvas>
+            </div>
+            <div class="q2-controls">
+                <button onclick="q2_toggleChartType('bar')">切換為柱狀圖 (Bar)</button>
+                <button onclick="q2_toggleChartType('line')">切換為線形圖 (Line)</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const data1 = [
+            { "date": "2025-11-01", "total": 1000, "defect": 25 },
+            { "date": "2025-11-02", "total": 980, "defect": 40 },
+            { "date": "2025-11-03", "total": 1100, "defect": 15 },
+            { "date": "2025-11-04", "total": 1200, "defect": 70 },
+        ];
+        const data2 = [
+            { "date": "2025-11-05", "total": 1050, "defect": 35 },
+            { "date": "2025-11-06", "total": 1150, "defect": 50 },
+            { "date": "2025-11-07", "total": 990, "defect": 18 },
+            { "date": "2025-11-08", "total": 700, "defect": 10 },
+        ];
+
+        function q1_processData(sourceData) {
+            const labels = [];
+            const productionData = [];
+            const defectRateData = [];
+
+            sourceData.forEach(item => {
+                const rate = (item.defect / item.total) * 100;
+                labels.push(item.date);
+                productionData.push(item.total);
+                defectRateData.push(rate);
+            });
+
+            return { labels, productionData, defectRateData };
+        }
+
+        let q1_currentDataIndex = 1;
+        let q1_processedData = q1_processData(data1);
+        let q1_myChart;
+        let q1_currentRawData = data1;
+
+        function q1_createChartConfig(data) {
+            return {
+                data: {
+                    labels: data.labels,
+                    datasets: [
+                        {
+                            label: '產出數 (total)',
+                            type: 'bar',
+                            data: data.productionData,
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1,
+                            yAxisID: 'y-total',
+                            order: 0,
+                        },
+                        {
+                            label: '不良率 (%)',
+                            type: 'line',
+                            data: data.defectRateData,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            borderWidth: 2,
+                            pointRadius: 5,
+                            fill: false,
+                            yAxisID: 'y-rate',
+                            order: 1,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        'y-total': {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: '產出數 (total)' },
+                            beginAtZero: true
+                        },
+                        'y-rate': {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: '不良率 (%)' },
+                            beginAtZero: true,
+                            grid: { drawOnChartArea: false },
+                            max: 15
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function (context) {
+                                    const index = context.dataIndex;
+                                    const item = q1_currentRawData[index];
+                                    if (item) {
+                                        const rate = (item.defect / item.total) * 100;
+                                        return [
+                                            `日期: ${item.date}`,
+                                            `產出數 (total): ${item.total.toLocaleString()}`,
+                                            `不良數 (defect): ${item.defect.toLocaleString()}`,
+                                            `不良率 (%): ${rate.toFixed(2)}%`
+                                        ];
+                                    }
+                                    return context.dataset.label + ': ' + context.raw.toLocaleString();
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                line10: {
+                                    type: 'line',
+                                    yMin: 10,
+                                    yMax: 10,
+                                    yScaleID: 'y-rate',
+                                    borderColor: 'red',
+                                    borderWidth: 2,
+                                    borderDash: [6, 6],
+                                    label: {
+                                        content: '不良率 10% (警示線)',
+                                        display: true,
+                                        position: 'start',
+                                        backgroundColor: 'rgba(255, 0, 0, 0.7)'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
+        function q1_initChart() {
+            const ctx = document.getElementById('qualityChart').getContext('2d');
+            const config = q1_createChartConfig(q1_processedData);
+            q1_myChart = new Chart(ctx, config);
+        }
+
+        function q1_updateChartData() {
+            q1_currentDataIndex = q1_currentDataIndex === 1 ? 2 : 1;
+            const newData = q1_currentDataIndex === 1 ? data1 : data2;
+            q1_currentRawData = newData;
+
+            q1_processedData = q1_processData(newData);
+
+            q1_myChart.data.labels = q1_processedData.labels;
+            q1_myChart.data.datasets[0].data = q1_processedData.productionData;
+            q1_myChart.data.datasets[1].data = q1_processedData.defectRateData;
+
+            document.getElementById('updateChartBtn').textContent = `切換資料 (目前：資料 ${q1_currentDataIndex})`;
+
+            q1_myChart.update();
+        }
+
+        document.getElementById('updateChartBtn').addEventListener('click', q1_updateChartData);
+
+        let q2_myChart;
+        let q2_chartData = [];
+        let q2_currentChartType = 'bar';
+
+        let currentTokenKey;
+        let currentSID;
+        let isInitialized = false;
+
+        async function q2_fetchGridData() {
+            const errorMessageElement = document.getElementById('authErrorMessage');
+            errorMessageElement.textContent = "";
+
+            const apiUrl = 'https://cloud.weyutech.com/DEMO_H5Api/api/GetGrid';
+            const headers = {
+                "TokenKey": currentTokenKey,
+                "SID": currentSID,
+                "Content-Type": "application/json"
+            };
+            const postBody = {};
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify(postBody)
+                });
+
+                if (response.status !== 200) {
+                    console.error(`API 錯誤: 狀態碼 ${response.status}`);
+                    throw new Error(`API 連線失敗，請檢查 Key/Token 或聯繫系統管理員。`);
+                }
+
+                const data = await response.json();
+
+                if (data.IsError === true || !Array.isArray(data.Grid_Data)) {
+                    console.warn("API 響應內容無效或包含錯誤。");
+                    throw new Error(`API 數據格式錯誤，請聯繫系統管理員。`);
+                }
+
+                if (data.Grid_Data.length === 0) {
+                    console.warn("API 載入成功，但 Grid_Data 陣列為空。");
+                    return [];
+                }
+
+                return data.Grid_Data;
+
+            } catch (error) {
+                console.error("API 請求或處理失敗:", error.message);
+                return null;
+            }
+        }
+
+        async function q2_initializeChart() {
+            const rawData = await q2_fetchGridData();
+
+            if (rawData === null) {
+                return false;
+            }
+
+            q2_chartData = rawData;
+
+            if (rawData.length === 0) {
+                console.log("無數據，跳過 Q2 圖表初始化。");
+                return true;
+            }
+
+            const labels = rawData.map(item => item.REPORT_TIME);
+            const outputs = rawData.map(item => item.OUTPUT);
+
+            const ctx = document.getElementById('myChart').getContext('2d');
+
+            const config = {
+                type: q2_currentChartType,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '生產輸出 (OUTPUT)',
+                        data: outputs,
+                        backgroundColor: 'rgba(75, 192, 192, 0.6)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: q2_currentChartType === 'bar' ? 1 : 2,
+                        pointRadius: q2_currentChartType === 'line' ? 5 : 0,
+                        rawData: rawData
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: function (tooltipItems) {
+                                    return tooltipItems[0].label;
+                                },
+                                label: function (tooltipItem) {
+                                    const originalData = tooltipItem.dataset.rawData[tooltipItem.dataIndex];
+                                    if (!originalData) return tooltipItem.dataset.label + ': ' + tooltipItem.raw;
+
+                                    return [
+                                        `輸出 (OUTPUT): ${originalData.OUTPUT}`,
+                                        `時間 (REPORT_TIME): ${originalData.REPORT_TIME}`,
+                                        `機台 ID (MACHINE_ID): ${originalData.MACHINE_ID}`,
+                                        `狀態 (STATUS): ${originalData.STATUS}`
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+
+            q2_myChart = new Chart(ctx, config);
+            return true;
+        }
+
+        function q2_toggleChartType(newType) {
+            if (q2_myChart && newType !== q2_currentChartType) {
+                q2_myChart.destroy();
+                q2_currentChartType = newType;
+
+                const ctx = document.getElementById('myChart').getContext('2d');
+                const newConfig = q2_myChart.config;
+                newConfig.type = q2_currentChartType;
+
+                newConfig.data.datasets[0].borderWidth = q2_currentChartType === 'bar' ? 1 : 2;
+                newConfig.data.datasets[0].pointRadius = q2_currentChartType === 'line' ? 5 : 0;
+
+                q2_myChart = new Chart(ctx, newConfig);
+            }
+        }
+
+        async function saveKeysAndLoadDashboard() {
+            const tokenInput = document.getElementById('inputToken');
+            const sidInput = document.getElementById('inputSid');
+            const modal = document.getElementById('auth-modal');
+            const errorMessageElement = document.getElementById('authErrorMessage');
+
+            currentTokenKey = tokenInput.value;
+            currentSID = sidInput.value;
+            errorMessageElement.textContent = "載入中，請稍候...";
+
+            try {
+                const success = await q2_initializeChart();
+
+                if (success) {
+                    q1_initChart();
+                    modal.style.display = 'none';
+                    errorMessageElement.textContent = "";
+                    isInitialized = true;
+                } else {
+                    modal.style.display = 'flex';
+                    errorMessageElement.textContent = "錯誤：請檢查 Key/Token 或聯繫系統管理員。";
+                    isInitialized = false;
+                }
+
+            } catch (e) {
+                modal.style.display = 'flex';
+                errorMessageElement.textContent = `錯誤：${e.message}。請聯繫系統管理員。`;
+                isInitialized = false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const modal = document.getElementById('auth-modal');
+            modal.style.display = 'flex';
+        });
+
+    </script>
+</body>
+
+</html>
